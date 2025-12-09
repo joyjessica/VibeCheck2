@@ -48,11 +48,33 @@ app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max file size
 # ==============================================================================
 
 print("Loading models...")
-text_model = SentenceTransformer("all-MiniLM-L6-v2", device=DEVICE)
-clip_model, clip_preprocess = clip.load("ViT-B/32", device=DEVICE)
-faiss_index = faiss.read_index(str(FAISS_PATH))
-meta_ids = np.load(META_PATH)
-print(f"Models loaded. FAISS index contains {len(meta_ids)} restaurants.")
+try:
+    text_model = SentenceTransformer("all-MiniLM-L6-v2", device=DEVICE)
+    clip_model, clip_preprocess = clip.load("ViT-B/32", device=DEVICE)
+
+    if FAISS_PATH.exists() and META_PATH.exists():
+        faiss_index = faiss.read_index(str(FAISS_PATH))
+        meta_ids = np.load(META_PATH)
+        print(f"Models loaded. FAISS index contains {len(meta_ids)} restaurants.")
+    else:
+        print(f"WARNING: FAISS index or meta IDs not found!")
+        print(f"  FAISS_PATH: {FAISS_PATH} (exists: {FAISS_PATH.exists()})")
+        print(f"  META_PATH: {META_PATH} (exists: {META_PATH.exists()})")
+        faiss_index = None
+        meta_ids = np.array([])
+        print("App will start but search will not work until data is loaded.")
+
+except Exception as e:
+    print(f"ERROR loading models: {e}")
+    import traceback
+    traceback.print_exc()
+    # Set defaults to allow app to start
+    text_model = None
+    clip_model = None
+    clip_preprocess = None
+    faiss_index = None
+    meta_ids = np.array([])
+    print("App starting with limited functionality.")
 
 # ==============================================================================
 # HELPER FUNCTIONS
@@ -253,10 +275,26 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/health")
+def health():
+    """Health check endpoint for Cloud Run."""
+    status = {
+        "status": "healthy",
+        "models_loaded": text_model is not None,
+        "faiss_loaded": faiss_index is not None,
+        "restaurant_count": len(meta_ids) if meta_ids is not None else 0
+    }
+    return jsonify(status), 200
+
+
 @app.route("/api/search", methods=["POST"])
 def search():
     """Search restaurants via FAISS index."""
     try:
+        # Check if models are loaded
+        if faiss_index is None or text_model is None:
+            return jsonify({"error": "Search service not ready. Models are still loading or data files are missing."}), 503
+
         query_text = request.form.get("text", "")
         query_image = request.files.get("image")
         top_k = int(request.form.get("top_k", 9))
