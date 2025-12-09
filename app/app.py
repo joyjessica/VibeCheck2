@@ -272,7 +272,20 @@ def import_vibe_map_to_db():
 @app.route("/")
 def index():
     """Main page."""
-    return render_template("index.html")
+    try:
+        return render_template("index.html")
+    except Exception as e:
+        # Fallback if template fails - return simple HTML for health checks
+        return f"""
+        <html>
+            <head><title>VibeCheck</title></head>
+            <body>
+                <h1>VibeCheck API</h1>
+                <p>Service is running. Template error: {e}</p>
+                <p>Visit <a href="/health">/health</a> for status.</p>
+            </body>
+        </html>
+        """, 200
 
 
 @app.route("/health")
