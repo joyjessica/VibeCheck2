@@ -356,93 +356,107 @@ def map_data():
 
 @app.route("/api/vibe-stats")
 def vibe_stats():
-    conn = get_db()
-    cursor = conn.cursor()
+    try:
+        if not DB_PATH.exists():
+            return jsonify({"error": "Database not available", "vibes": []}), 503
 
-    cursor.execute("""
-        SELECT vibe_name, SUM(mention_count) as total
-        FROM vibe_analysis
-        GROUP BY vibe_name
-        ORDER BY total DESC
-        LIMIT 10
-    """)
+        conn = get_db()
+        cursor = conn.cursor()
 
-    vibes = [{"name": row[0], "count": row[1]} for row in cursor.fetchall()]
-    conn.close()
+        cursor.execute("""
+            SELECT vibe_name, SUM(mention_count) as total
+            FROM vibe_analysis
+            GROUP BY vibe_name
+            ORDER BY total DESC
+            LIMIT 10
+        """)
 
-    return jsonify({"vibes": vibes})
+        vibes = [{"name": row[0], "count": row[1]} for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify({"vibes": vibes})
+    except Exception as e:
+        print(f"Vibe stats error: {e}")
+        return jsonify({"error": str(e), "vibes": []}), 503
 
 
 @app.route("/api/restaurants-by-vibe")
 def restaurants_by_vibe():
     """Get restaurants matching a specific vibe, sorted by mention count."""
-    vibe_name = request.args.get("vibe")
-    if not vibe_name:
-        return jsonify({"error": "Vibe parameter is required"}), 400
+    try:
+        vibe_name = request.args.get("vibe")
+        if not vibe_name:
+            return jsonify({"error": "Vibe parameter is required"}), 400
 
-    conn = get_db()
-    cursor = conn.cursor()
+        if not DB_PATH.exists():
+            return jsonify({"error": "Database not available", "restaurants": []}), 503
 
-    # Get restaurants with this vibe, ranked by mention count
-    cursor.execute(
-        """
-        SELECT r.id, r.name, r.rating, r.address, r.reviews_count,
-               va.mention_count
-        FROM restaurants r
-        JOIN vibe_analysis va ON r.id = va.restaurant_id
-        WHERE va.vibe_name = ?
-        ORDER BY va.mention_count DESC, r.rating DESC
-        LIMIT 50
-        """,
-        (vibe_name,),
-    )
+        conn = get_db()
+        cursor = conn.cursor()
 
-    restaurants = []
-    for row in cursor.fetchall():
-        restaurant_id = row["id"]
-
-        # Get first photo
+        # Get restaurants with this vibe, ranked by mention count
         cursor.execute(
             """
-            SELECT local_filename
-            FROM vibe_photos
-            WHERE restaurant_id = ?
-            LIMIT 1
+            SELECT r.id, r.name, r.rating, r.address, r.reviews_count,
+                   va.mention_count
+            FROM restaurants r
+            JOIN vibe_analysis va ON r.id = va.restaurant_id
+            WHERE va.vibe_name = ?
+            ORDER BY va.mention_count DESC, r.rating DESC
+            LIMIT 50
             """,
-            (restaurant_id,),
-        )
-        photo_row = cursor.fetchone()
-
-        # Get top review
-        cursor.execute(
-            """
-            SELECT review_text, likes
-            FROM reviews
-            WHERE restaurant_id = ?
-            ORDER BY likes DESC
-            LIMIT 1
-            """,
-            (restaurant_id,),
-        )
-        review_row = cursor.fetchone()
-
-        restaurants.append(
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "rating": row["rating"],
-                "address": row["address"],
-                "reviews_count": row["reviews_count"],
-                "mention_count": row["mention_count"],
-                "photo_filename": photo_row["local_filename"] if photo_row else None,
-                "top_review": review_row["review_text"][:200] + "..."
-                if review_row and review_row["review_text"]
-                else None,
-            }
+            (vibe_name,),
         )
 
-    conn.close()
-    return jsonify({"vibe": vibe_name, "restaurants": restaurants})
+        restaurants = []
+        for row in cursor.fetchall():
+            restaurant_id = row["id"]
+
+            # Get first photo
+            cursor.execute(
+                """
+                SELECT local_filename
+                FROM vibe_photos
+                WHERE restaurant_id = ?
+                LIMIT 1
+                """,
+                (restaurant_id,),
+            )
+            photo_row = cursor.fetchone()
+
+            # Get top review
+            cursor.execute(
+                """
+                SELECT review_text, likes
+                FROM reviews
+                WHERE restaurant_id = ?
+                ORDER BY likes DESC
+                LIMIT 1
+                """,
+                (restaurant_id,),
+            )
+            review_row = cursor.fetchone()
+
+            restaurants.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "rating": row["rating"],
+                    "address": row["address"],
+                    "reviews_count": row["reviews_count"],
+                    "mention_count": row["mention_count"],
+                    "photo_filename": photo_row["local_filename"] if photo_row else None,
+                    "top_review": review_row["review_text"][:200] + "..."
+                    if review_row and review_row["review_text"]
+                    else None,
+                }
+            )
+
+        conn.close()
+        return jsonify({"vibe": vibe_name, "restaurants": restaurants})
+    except Exception as e:
+        print(f"Restaurants by vibe error: {e}")
+        return jsonify({"error": str(e), "restaurants": []}), 503
 
 
 @app.route("/images/<path:filename>")
