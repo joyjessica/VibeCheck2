@@ -63,10 +63,6 @@ ENV VIBE_MAP_CSV=/app/data/vibe_map.csv
 # Expose Flask port
 EXPOSE 8080
 
-# Health check - longer start period for data download
-HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
 # Run startup script then Flask application with gunicorn
 ENTRYPOINT ["/app/startup.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--threads", "4", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "0", "--preload", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
