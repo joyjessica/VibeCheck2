@@ -35,10 +35,9 @@ RUN poetry install --only main --no-interaction --no-ansi && \
     pip install --no-cache-dir gunicorn
 
 # Copy application code
-COPY app/app.py ./app.py
-COPY app/templates/ ./templates/
-COPY app/static/ ./static/
+COPY app/ ./app/
 COPY src/ ./src/
+COPY wsgi.py ./wsgi.py
 
 # Copy startup script
 COPY startup.sh /app/startup.sh
@@ -65,4 +64,4 @@ EXPOSE 8080
 
 # Run startup script then Flask application with gunicorn
 ENTRYPOINT ["/app/startup.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "0", "--log-level", "debug", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "0", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--preload", "wsgi:application"]
