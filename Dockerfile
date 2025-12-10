@@ -64,4 +64,4 @@ EXPOSE 8080
 
 # Run startup script then Flask application with gunicorn
 ENTRYPOINT ["/app/startup.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "0", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--preload", "wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "1", "--threads", "8", "--timeout", "0", "--worker-class", "sync", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "wsgi:application"]
